@@ -1,102 +1,119 @@
+// App.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import WeatherCard from "./WeatherCard.jsx";
-import ForecastCard from "./ForecastCard.jsx";
+import api from "./axiosConfig";
+import ForecastCard from "./ForecastCard";
 import "./App.css";
 
-const apiKey = "391d07c922bdfeff1fe1a5651d758e50";
-const weatherUrl = "https://api.openweathermap.org/data/2.5/weather";
-const forecastUrl = "https://api.openweathermap.org/data/2.5/forecast";
-
-const App = () => {
-  const [inputCity, setInputCity] = useState("Delhi"); // controlled input
-  const [city, setCity] = useState("Delhi");           // actual city used for API
+function App() {
+  const [city, setCity] = useState("Delhi");
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [error, setError] = useState("");
 
-  const fetchWeather = async (cityName) => {
-    if (!cityName) return;
-    try {
-      setLoading(true);
-      const res = await fetch(`${weatherUrl}?q=${cityName}&appid=${apiKey}&units=metric`);
-      if (!res.ok) throw new Error("City not found");
-      const data = await res.json();
-      setWeather(data);
-
-      const forecastRes = await fetch(`${forecastUrl}?q=${cityName}&appid=${apiKey}&units=metric`);
-      if (!forecastRes.ok) throw new Error("Forecast not found");
-      const forecastData = await forecastRes.json();
-
-      const daily = {};
-      forecastData.list.forEach(item => {
-        const date = item.dt_txt.split(" ")[0];
-        if (!daily[date]) daily[date] = [];
-        daily[date].push(item);
-      });
-
-      const next6Days = Object.keys(daily).slice(1, 7).map(date => ({
-        date,
-        details: daily[date]
-      }));
-      setForecast(next6Days);
-
-    } catch (err) {
-      setWeather(null);
-      setForecast([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Correct debounce with useCallback
+  // Debounce helper
   const debounce = (func, delay) => {
     let timeout;
     return (...args) => {
       clearTimeout(timeout);
-      timeout = setTimeout(() => func(...args), delay);
+      timeout = setTimeout(() => func.apply(this, args), delay);
     };
   };
 
-  const debouncedSearch = useCallback(
-    debounce((searchCity) => {
-      if (searchCity) setCity(searchCity); // trigger fetchWeather
-    }, 500),
+  // Fetch current weather
+  const getWeather = useCallback(async (cityName) => {
+    try {
+      setError("");
+      const res = await api.get("/weather", { params: { q: cityName } });
+      setWeather(res.data);
+      getForecast(cityName);
+    } catch (err) {
+      setError("City not found");
+      setWeather(null);
+      setForecast([]);
+    }
+  }, []);
+
+  // Fetch forecast
+  const getForecast = async (cityName) => {
+    try {
+      const res = await api.get("/forecast", { params: { q: cityName } });
+      const grouped = {};
+
+      res.data.list.forEach((item) => {
+        const date = item.dt_txt.split(" ")[0];
+        if (!grouped[date]) grouped[date] = [];
+        grouped[date].push(item);
+      });
+
+      const dates = Object.keys(grouped).slice(1, 7);
+      const formatted = dates.map((date) => ({
+        date,
+        items: grouped[date],
+      }));
+
+      setForecast(formatted);
+    } catch (err) {
+      setError("Forecast not available");
+    }
+  };
+
+  // Debounced search
+  const handleSearch = useCallback(
+    debounce((value) => {
+      if (value.trim()) {
+        getWeather(value.trim());
+      }
+    }, 600),
     []
   );
 
   useEffect(() => {
-    fetchWeather(city);
-  }, [city]);
+    getWeather("Delhi");
+  }, [getWeather]);
 
   return (
     <div className={`app ${darkMode ? "dark" : ""}`}>
-      <div className="container">
-        <h1>🌦️ Weather App</h1>
+      <div className="app-card">
+        <h1 className="app-title">🌦️ Weather App</h1>
 
-        <button className="theme-btn" onClick={() => setDarkMode(!darkMode)}>
+        {/* Theme toggle */}
+        <button className="toggle-btn" onClick={() => setDarkMode(!darkMode)}>
           {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
         </button>
 
-        <div className="search-bar">
+        {/* Search */}
+        <div className="search-box">
           <input
             type="text"
-            placeholder="Enter city name..."
-            value={inputCity}
+            placeholder="Enter city..."
             onChange={(e) => {
-              setInputCity(e.target.value);
-              debouncedSearch(e.target.value.trim());
+              setCity(e.target.value);
+              handleSearch(e.target.value);
             }}
+            value={city}
           />
         </div>
 
-        {loading && <div className="loading">⏳ Loading weather...</div>}
+        {/* Error message */}
+        {error && <p className="error">{error}</p>}
 
-        {weather && <WeatherCard data={weather} />}
-        {forecast.length > 0 && <ForecastCard data={forecast} />}
+        {/* Current Weather */}
+        {weather && (
+          <div className="weather-card">
+            <h2>{weather.name}</h2>
+            <p className="temp">{weather.main.temp}°C</p>
+            <p>{weather.weather[0].description}</p>
+            <p>💧 Humidity: {weather.main.humidity}%</p>
+            <p>💨 Wind: {weather.wind.speed} m/s</p>
+          </div>
+        )}
+
+        {/* Forecast */}
+        <ForecastCard forecast={forecast} />
       </div>
     </div>
   );
-};
+}
 
 export default App;

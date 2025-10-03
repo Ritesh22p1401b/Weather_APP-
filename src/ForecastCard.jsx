@@ -1,26 +1,33 @@
+// ForecastCard.jsx
 import React from "react";
+import "./App.css";
 
-const ForecastCard = ({ data }) => {
+function ForecastCard({ forecast }) {
+  if (!forecast || forecast.length === 0) {
+    return (
+      <div className="forecast-empty">
+        <p>No forecast data available</p>
+      </div>
+    );
+  }
+
   return (
     <div className="forecast-container">
-      <h2>Next 6 Days Forecast</h2>
-      <div className="forecast-grid">
-        {data.map((day, index) => (
-          <div key={index} className="forecast-day-card">
-            <div className="date">{day.date}</div>
-            {day.details.map((item, i) => (
-              <div key={i} className="sub-card">
-                <div className="time">{item.dt_txt.split(" ")[1]}</div>
-                <div className="temp-desc">{item.main.temp}°C - {item.weather[0].description}</div>
-                <div className="info">💧 Humidity: {item.main.humidity}%</div>
-                <div className="info">💨 Wind: {item.wind.speed} m/s</div>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+      {forecast.map((day, index) => (
+        <div key={index} className="forecast-card">
+          <h3 className="forecast-date">{day.date}</h3>
+          {day.items.map((item, i) => (
+            <div key={i} className="forecast-detail">
+              <p>🌡 Temp: {item.main.temp}°C</p>
+              <p>💧 Humidity: {item.main.humidity}%</p>
+              <p>💨 Wind: {item.wind.speed} m/s</p>
+              <p>☁️ {item.weather[0].description}</p>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
-};
+}
 
 export default ForecastCard;
